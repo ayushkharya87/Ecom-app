@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Request, Response, query } from "express";
 
 // usercontroller types
 
@@ -27,4 +27,25 @@ export interface NewProductRequestBody {
     category: string;
     price: number;
     stock: number;
+}
+
+// query for search
+export type SearchRequestQuery = {
+    search?: string;
+    price?: string;
+    category?: string;
+    sort?: string;
+    page?: string;
+}
+
+// base query for search 
+export interface BaseQuery {
+    name?: {
+        $regex: string;
+        $options: string;
+    },
+    price?: {
+        $lte: number;
+    },
+    category?: string;
 }

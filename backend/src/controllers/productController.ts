@@ -1,6 +1,6 @@
 import { Request } from "express";
 import { TryCatch } from "../middlewares/error.js";
-import { NewProductRequestBody } from "../types/types.js";
+import { BaseQuery, NewProductRequestBody, SearchRequestQuery } from "../types/types.js";
 import { Product } from "../models/product.js";
 import ErrorHandler from "../utils/utility-class.js";
 import { rm } from "fs";
@@ -173,25 +173,55 @@ export const deleteProduct = TryCatch(
 
 // search products
 export const searchProducts = TryCatch(
-    async ( req, res, next) => {
-        const id = req.params.id
-        const product = await Product.findById(id)
+    async ( req: Request<{}, {}, {}, SearchRequestQuery>, res, next) => {
+         
+        const {search, sort, category, price} = req.query;
 
-        // if product does not exist
-        if (!product) {
-            return next(new ErrorHandler("Product not found", 404));
+        const page = Number(req.query.page) || 1;
+
+        const limit = Number(process.env.PRODUCT_PER_PAGE) || 8;
+        const skip = (page - 1) * limit;
+        
+        // query for search products
+        const baseQuery: BaseQuery = {};
+
+        // for search by name
+        if (search) {
+            baseQuery.name = {
+                $regex: search,
+                $options: "i",
+            }
+        }
+        // base query for price
+        if (price) {
+            baseQuery.price = {
+                $lte: Number(price)
+            }
         }
 
-        // delete photo
-        rm(product.photo, () => {
-            console.log("Product Photo Deleted");
-        });
+        // base query category
+        if ( category) {
+            baseQuery.category = category
+        };
 
-        await Product.deleteOne()
+        // sort by price by asc or dsc
+        const productsPromise = Product.find(baseQuery).sort(sort && { price: sort === "asc" ? 1 : -1 })
+        .limit(limit)
+        .skip(skip);
+
+        const [products, filteredProduct] = await Promise.all([
+            productsPromise,
+         // show only filtered product in pages
+        Product.find(baseQuery)
+        ])
+
+        // show total pages
+        const totalPage = Math.ceil(filteredProduct.length / limit);
 
         return res.status(200).json({
             success: true,
-            message: "Product Deleted Successfully"
+           products,
+           totalPage
         });
     }
 );

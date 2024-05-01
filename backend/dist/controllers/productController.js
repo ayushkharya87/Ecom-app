@@ -124,19 +124,44 @@ export const deleteProduct = TryCatch(async (req, res, next) => {
 });
 // search products
 export const searchProducts = TryCatch(async (req, res, next) => {
-    const id = req.params.id;
-    const product = await Product.findById(id);
-    // if product does not exist
-    if (!product) {
-        return next(new ErrorHandler("Product not found", 404));
+    const { search, sort, category, price } = req.query;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(process.env.PRODUCT_PER_PAGE) || 8;
+    const skip = (page - 1) * limit;
+    // query for search products
+    const baseQuery = {};
+    // for search by name
+    if (search) {
+        baseQuery.name = {
+            $regex: search,
+            $options: "i",
+        };
     }
-    // delete photo
-    rm(product.photo, () => {
-        console.log("Product Photo Deleted");
-    });
-    await Product.deleteOne();
+    // base query for price
+    if (price) {
+        baseQuery.price = {
+            $lte: Number(price)
+        };
+    }
+    // base query category
+    if (category) {
+        baseQuery.category = category;
+    }
+    ;
+    // sort by price by asc or dsc
+    const productsPromise = Product.find(baseQuery).sort(sort && { price: sort === "asc" ? 1 : -1 })
+        .limit(limit)
+        .skip(skip);
+    const [products, filteredProduct] = await Promise.all([
+        productsPromise,
+        // show only filtered product in pages
+        Product.find(baseQuery)
+    ]);
+    // show total pages
+    const totalPage = Math.ceil(filteredProduct.length / limit);
     return res.status(200).json({
         success: true,
-        message: "Product Deleted Successfully"
+        products,
+        totalPage
     });
 });
