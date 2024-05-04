@@ -2,6 +2,7 @@ import { TryCatch } from "../middlewares/error.js";
 import { Product } from "../models/product.js";
 import ErrorHandler from "../utils/utility-class.js";
 import { rm } from "fs";
+import { myCache } from "../app.js";
 // create new product
 export const newProduct = TryCatch(async (req, res, next) => {
     const { name, price, stock, category } = req.body;
@@ -29,37 +30,76 @@ export const newProduct = TryCatch(async (req, res, next) => {
         message: "Product Created Successfully"
     });
 });
-// get latest product
+// get latest product -- using cache
 export const getLatestProducts = TryCatch(async (req, res, next) => {
-    const products = await Product.find({}).sort({ createdAt: -1 }).limit(5);
+    // check if the data is in memory so pass data from memory 
+    let products;
+    if (myCache.has("latest-products")) {
+        products = JSON.parse(myCache.get("latest-products"));
+    }
+    else {
+        // find latest product
+        products = await Product.find({}).sort({ createdAt: -1 }).limit(5);
+        // save the data on memory
+        myCache.set("latest-products", JSON.stringify(products));
+    }
     return res.status(200).json({
         success: true,
         products
     });
 });
-// get categories
+// get categories -- using cache
 export const getAllCategories = TryCatch(async (req, res, next) => {
-    const categories = await Product.distinct("category");
+    // check if the data is in memory so pass data from memory 
+    let categories;
+    if (myCache.has("categories")) {
+        categories = JSON.parse(myCache.get("categories"));
+    }
+    else {
+        categories = await Product.distinct("category");
+        // save the data on memory
+        myCache.set("categories", JSON.stringify(categories));
+    }
     return res.status(200).json({
         success: true,
         categories
     });
 });
-// get Admin product
+// get Admin product -- using cache
 export const getAdminProducts = TryCatch(async (req, res, next) => {
-    const products = await Product.find({});
+    // check if the data is in memory so pass data from memory 
+    let products;
+    if (myCache.has("all-products")) {
+        products = JSON.parse(myCache.get("all-products"));
+    }
+    else {
+        // find products from database
+        products = await Product.find({});
+        // save the data on memory
+        myCache.set("all-products", JSON.stringify(products));
+    }
     return res.status(200).json({
         success: true,
         products
     });
 });
-// get single product
+// get single product -- using cache
 export const getSingleProduct = TryCatch(async (req, res, next) => {
+    // check if the data is in memory so pass data from memory 
+    let product;
     const id = req.params.id;
-    const product = await Product.findById(id);
-    // if product does not exist
-    if (!product) {
-        return next(new ErrorHandler("Invalid Product Id", 404));
+    if (myCache.has(`product-${id}`)) {
+        product = JSON.parse(myCache.get(`product-${id}`));
+    }
+    else {
+        //  find product by id
+        product = await Product.findById(id);
+        // if product does not exist
+        if (!product) {
+            return next(new ErrorHandler("Invalid Product Id", 404));
+        }
+        // save the data on memory
+        myCache.set(`product-${id}`, JSON.stringify(product));
     }
     return res.status(200).json({
         success: true,

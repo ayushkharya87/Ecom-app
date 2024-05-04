@@ -8,3 +8,6 @@ export const connectDB = () => {
         console.log(error);
     });
 };
+// revalidate Cache function
+export const invalidateCache = (product) => {
+};
