@@ -3,33 +3,7 @@ import { Product } from "../models/product.js";
 import ErrorHandler from "../utils/utility-class.js";
 import { rm } from "fs";
 import { myCache } from "../app.js";
-// create new product
-export const newProduct = TryCatch(async (req, res, next) => {
-    const { name, price, stock, category } = req.body;
-    const photo = req.file;
-    // if photo are not added
-    if (!photo)
-        return next(new ErrorHandler("Please add Photo", 400));
-    // if product details are not added
-    if (!name || !price || !stock || !category) {
-        // deleted photo 
-        rm(photo.path, () => {
-            console.log("deleted!");
-        });
-        return next(new ErrorHandler("Please enter all details", 400));
-    }
-    await Product.create({
-        name,
-        price,
-        stock,
-        category: category.toLowerCase(),
-        photo: photo?.path
-    });
-    return res.status(201).json({
-        success: true,
-        message: "Product Created Successfully"
-    });
-});
+import { invalidateCache } from "../utils/features.js";
 // get latest product -- using cache
 export const getLatestProducts = TryCatch(async (req, res, next) => {
     // check if the data is in memory so pass data from memory 
@@ -106,6 +80,35 @@ export const getSingleProduct = TryCatch(async (req, res, next) => {
         product
     });
 });
+// create new product
+export const newProduct = TryCatch(async (req, res, next) => {
+    const { name, price, stock, category } = req.body;
+    const photo = req.file;
+    // if photo are not added
+    if (!photo)
+        return next(new ErrorHandler("Please add Photo", 400));
+    // if product details are not added
+    if (!name || !price || !stock || !category) {
+        // deleted photo 
+        rm(photo.path, () => {
+            console.log("deleted!");
+        });
+        return next(new ErrorHandler("Please enter all details", 400));
+    }
+    await Product.create({
+        name,
+        price,
+        stock,
+        category: category.toLowerCase(),
+        photo: photo?.path
+    });
+    // invalidate cache
+    await invalidateCache({ product: true });
+    return res.status(201).json({
+        success: true,
+        message: "Product Created Successfully"
+    });
+});
 // update product
 export const updateProduct = TryCatch(async (req, res, next) => {
     // get id
@@ -139,6 +142,8 @@ export const updateProduct = TryCatch(async (req, res, next) => {
         product.category = category;
     // save the product 
     await product.save();
+    // invalidate cache
+    await invalidateCache({ product: true, productId: String(product._id) });
     return res.status(200).json({
         success: true,
         message: "Product Update Successfully"
@@ -157,6 +162,8 @@ export const deleteProduct = TryCatch(async (req, res, next) => {
         console.log("Product Photo Deleted");
     });
     await Product.deleteOne();
+    // invalidate cache
+    await invalidateCache({ product: true, productId: String(product._id) });
     return res.status(200).json({
         success: true,
         message: "Product Deleted Successfully"
